@@ -21,6 +21,48 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N]);
 char transpose_submit_desc[] = "Transpose submission";
 void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 {
+	int blocki=0, blockj = 0;
+	int size=4, div = 4;
+	int bi, bj;
+	
+	int i, j;
+	switch(M){
+		case 32:
+		size=8;
+		for (blocki=0; blocki<N; blocki+=size){
+			for (blockj=0; blockj<M; blockj+=size){
+				for (i=0; i<size; i++){
+					for (j=0; j<size; j++){
+						B[blockj+j][blocki+i] = A[blocki+i][blockj+j];
+					}
+				}
+			}
+		}
+		break;
+		
+		default:
+		size = 16;
+		div = 4;
+		for (blocki=0; blocki<N; blocki+=size){
+			for (blockj=0; blockj<M; blockj+=size){
+
+				for (bj = 0; bj < size; bj += size/div){
+					for (bi = 0; bi < size; bi += size/div){
+			
+						for (i=0; i<size/div; i++){
+							for (j=0; j<size/div; j++){
+								B[bj+blockj+j][bi+blocki+i] = A[bi+blocki+i][bj+blockj+j];
+							}
+						}
+					
+					}
+				}
+			
+			}
+		}
+		break;
+
+	}
 }
 
 /*
@@ -31,18 +73,54 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 /*
  * trans - Простая функция транспонирования, без оптимизаций по кэшу.
  */
-char trans_desc[] = "Simple row-wise scan transpose";
-void trans(int M, int N, int A[N][M], int B[M][N])
-{
-    int i, j, tmp;
-
-    for (i = 0; i < N; i++) {
-        for (j = 0; j < M; j++) {
-            tmp = A[i][j];
-            B[j][i] = tmp;
-        }
-    }
+char transpose_magic_desc[] = "Inside blocking";
+void transpose_magic(int M, int N, int A[N][M], int B[M][N]){
+	int blocki=0, blockj=0;
+	int i, j;
+	int size=4;
+	size=8;
+	int k=0;
+	
+	for(k=0; k<16; k++){
+		blocki = 8 * (k%2 + 2*((k/4)%2));
+		blockj = 8 * (((k%4)/2) + 2*(k/8));
+			for (i = blocki; i < blocki+size; ++i) {
+				for (j = blockj; j < blockj+size; ++j) {
+					B[j][i] = A[i][j];
+				}
+			}
+		
+	}
 }
+
+#define SIZE 16
+#define DIV 4
+char transpose_test_desc[] = "test";
+void transpose_test(int M, int N, int A[N][M], int B[M][N]){
+	int i, j;
+	int blocki, blockj;
+	int bi, bj;
+	
+	for (blockj=0; blockj<M; blockj+=SIZE){
+	for (blocki=0; blocki<N; blocki+=SIZE){
+		
+
+			for (bj = 0; bj < SIZE; bj += SIZE/DIV){
+			for (bi = 0; bi < SIZE; bi += SIZE/DIV){
+			
+					for (i=0; i<SIZE/DIV; i++){
+						for (j=0; j<SIZE/DIV; j++){
+							B[bj+blockj+j][bi+blocki+i] = A[bi+blocki+i][bj+blockj+j];
+						}
+					}
+					
+				}
+			}
+			
+		}
+	}
+}
+
 
 /*
  * registerFunctions - Эта функция регистрирует ваши функции транспонирования.
@@ -56,8 +134,8 @@ void registerFunctions()
     registerTransFunction(transpose_submit, transpose_submit_desc);
 
     /* Зарегистрировать любые другие функции транспонирования */
-    registerTransFunction(trans, trans_desc);
-
+    //registerTransFunction(transpose_magic, transpose_magic_desc);
+    registerTransFunction(transpose_test, transpose_test_desc);
 }
 
 
